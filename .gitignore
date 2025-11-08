@@ -23,8 +23,9 @@ wheels/
 .installed.cfg
 *.egg
 
-# Environment variables
+# Environment variables and credentials
 .env
+credentials.json
 
 # Uploads and generated files
 uploads/

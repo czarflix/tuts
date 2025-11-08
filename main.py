@@ -10,6 +10,7 @@ from typing import Optional
 from services.vision_service import VisionService
 from services.search_service import SearchService
 from services.excel_service import ExcelService
+from services.google_sheets_service import GoogleSheetsService
 from services.resume_service import ResumeService
 from config import config
 
@@ -32,7 +33,17 @@ app.add_middleware(
 vision_service = VisionService()
 search_service = SearchService()
 excel_service = ExcelService()
+google_sheets_service = GoogleSheetsService()
 resume_service = ResumeService()
+
+# Print service status on startup
+print("\n" + "="*60)
+print("📊 Storage Services Status:")
+print(f"  Excel: ✅ Always enabled (local backup)")
+print(f"  Google Sheets: {'✅ Enabled' if google_sheets_service.is_enabled() else '⚠️  Disabled (credentials not found)'}")
+if google_sheets_service.is_enabled():
+    print(f"  Sheet URL: {google_sheets_service.get_sheet_url()}")
+print("="*60 + "\n")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -79,9 +90,14 @@ async def process_job_posting(
             )
             job_data["job_description"] = enhanced_description
 
-        # Step 3: Add to Excel (without resume link initially)
+        # Step 3: Add to Excel and Google Sheets (without resume link initially)
         print("Adding to Excel...")
         row_number = excel_service.add_job_application(job_data, resume_link="")
+
+        sheets_row = None
+        if google_sheets_service.is_enabled():
+            print("Adding to Google Sheets...")
+            sheets_row = google_sheets_service.add_job_application(job_data, resume_link="")
 
         resume_info = None
 
@@ -111,22 +127,32 @@ async def process_job_posting(
 
                 resume_info = resume_result
 
-                # Step 5: Update Excel with resume link
+                # Step 5: Update Excel and Google Sheets with resume link
                 excel_service.update_resume_link(row_number, resume_result.get("download_link", ""))
+
+                if google_sheets_service.is_enabled() and sheets_row:
+                    google_sheets_service.update_resume_link(sheets_row, resume_result.get("download_link", ""))
 
             except FileNotFoundError as e:
                 resume_info = {"error": str(e)}
             except Exception as e:
                 resume_info = {"error": f"Resume transformation failed: {str(e)}"}
 
-        return JSONResponse(content={
+        response_data = {
             "success": True,
             "message": "Job posting processed successfully!",
             "job_data": job_data,
             "excel_row": row_number,
             "excel_path": excel_service.get_excel_path(),
             "resume_info": resume_info
-        })
+        }
+
+        # Add Google Sheets info if enabled
+        if google_sheets_service.is_enabled():
+            response_data["google_sheets_url"] = google_sheets_service.get_sheet_url()
+            response_data["sheets_row"] = sheets_row
+
+        return JSONResponse(content=response_data)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

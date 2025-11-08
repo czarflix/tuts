@@ -266,7 +266,11 @@
         </div>
 
         <button class="btn btn-secondary" onclick="downloadExcel()">
-            📥 Download Excel Sheet
+            📥 Download Excel Sheet (Local Backup)
+        </button>
+
+        <button class="btn btn-secondary" onclick="openGoogleSheets()" id="sheets-btn" style="display: none;">
+            📊 Open Google Sheets
         </button>
 
         <div class="status" id="status"></div>
@@ -360,6 +364,12 @@
                 const data = await response.json();
 
                 if (response.ok) {
+                    // Store Google Sheets URL if available
+                    if (data.google_sheets_url) {
+                        googleSheetsUrl = data.google_sheets_url;
+                        document.getElementById('sheets-btn').style.display = 'block';
+                    }
+
                     let message = '✅ Job posting processed successfully!';
                     let details = `
                         <div class="result-details">
@@ -376,6 +386,9 @@
                                 `<p style="color: #dc3545;"><strong>Resume Error:</strong> ${data.resume_info.error}</p>` :
                                 ''}
                             <p><strong>Excel Row:</strong> ${data.excel_row}</p>
+                            ${data.google_sheets_url ?
+                                `<p><strong>📊 Google Sheets:</strong> <a href="${data.google_sheets_url}" target="_blank">Open in Google Sheets</a> (Row ${data.sheets_row})</p>` :
+                                ''}
                         </div>
                     `;
                     showStatus(message + details, 'success');
@@ -391,6 +404,14 @@
 
         async function downloadExcel() {
             window.location.href = '/download-excel/';
+        }
+
+        let googleSheetsUrl = null;
+
+        async function openGoogleSheets() {
+            if (googleSheetsUrl) {
+                window.open(googleSheetsUrl, '_blank');
+            }
         }
 
         function showStatus(message, type) {
